@@ -1,0 +1,7 @@
+# Vercel ignore
+node_modules
+.git
+.env.local
+test-result*.png
+*.md
+!README.md
