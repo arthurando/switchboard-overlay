@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Switchboard API Tester</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+    }
+    .container {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: #555;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #0070f3;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover {
+      background: #0051cc;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #f8f8f8;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    .result img {
+      max-width: 100%;
+      border-radius: 4px;
+      margin-top: 1rem;
+    }
+    .error {
+      color: #d32f2f;
+      background: #ffebee;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-top: 1rem;
+    }
+    .success {
+      color: #2e7d32;
+      background: #e8f5e9;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-top: 1rem;
+    }
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .presets {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .preset-btn {
+      padding: 0.5rem 1rem;
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .preset-btn:hover {
+      background: #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Switchboard API Tester</h1>
+    <p>Test your image overlay API endpoint</p>
+
+    <div class="form-group">
+      <label for="apiUrl">API Endpoint URL</label>
+      <input
+        type="text"
+        id="apiUrl"
+        value="http://localhost:3000/api/overlay"
+        placeholder="https://your-project.vercel.app/api/overlay"
+      >
+    </div>
+
+    <div class="form-group">
+      <label>Presets</label>
+      <div class="presets">
+        <button class="preset-btn" onclick="loadPreset('product1')">Product 1</button>
+        <button class="preset-btn" onclick="loadPreset('product2')">Product 2</button>
+        <button class="preset-btn" onclick="loadPreset('collection')">Collection</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="productImage">Product Image URL</label>
+      <input
+        type="text"
+        id="productImage"
+        placeholder="https://cdn.shopify.com/..."
+        value="https://cdn.shopify.com/s/files/1/0712/1135/2318/files/reusable-collection-cover-polariod.png"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="overlayImage">Overlay Image URL</label>
+      <input
+        type="text"
+        id="overlayImage"
+        placeholder="https://..."
+        value="https://i.postimg.cc/4dv39JsQ/cover.png"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="titleText">Product Title (Optional)</label>
+      <input
+        type="text"
+        id="titleText"
+        placeholder="My Product Title"
+        value="Test Product"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="width">Width (px)</label>
+      <input
+        type="number"
+        id="width"
+        value="1080"
+        min="100"
+        max="4000"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="height">Height (px)</label>
+      <input
+        type="number"
+        id="height"
+        value="1080"
+        min="100"
+        max="4000"
+      >
+    </div>
+
+    <button onclick="testAPI()" id="testBtn">
+      Generate Overlay
+    </button>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const presets = {
+      product1: {
+        productImage: 'https://cdn.shopify.com/s/files/1/0712/1135/2318/files/reusable-collection-cover-polariod.png',
+        overlayImage: 'https://i.postimg.cc/4dv39JsQ/cover.png',
+        title: 'Summer Collection Product'
+      },
+      product2: {
+        productImage: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30',
+        overlayImage: 'https://i.postimg.cc/4dv39JsQ/cover.png',
+        title: 'Premium Watch'
+      },
+      collection: {
+        productImage: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8',
+        overlayImage: 'https://i.postimg.cc/4dv39JsQ/cover.png',
+        title: 'Fashion Collection'
+      }
+    };
+
+    function loadPreset(name) {
+      const preset = presets[name];
+      if (!preset) return;
+
+      document.getElementById('productImage').value = preset.productImage;
+      document.getElementById('overlayImage').value = preset.overlayImage;
+      document.getElementById('titleText').value = preset.title;
+    }
+
+    async function testAPI() {
+      const btn = document.getElementById('testBtn');
+      const result = document.getElementById('result');
+
+      const apiUrl = document.getElementById('apiUrl').value;
+      const productImage = document.getElementById('productImage').value;
+      const overlayImage = document.getElementById('overlayImage').value;
+      const titleText = document.getElementById('titleText').value;
+      const width = parseInt(document.getElementById('width').value);
+      const height = parseInt(document.getElementById('height').value);
+
+      if (!apiUrl || !productImage || !overlayImage) {
+        result.innerHTML = '<div class="error">Please fill in all required fields</div>';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Processing...';
+      result.innerHTML = '';
+
+      const payload = {
+        template: 'product-cover',
+        sizes: [{ width, height }],
+        elements: {
+          'product-image': { url: productImage },
+          'stt-cover': { url: overlayImage },
+          'product-title': { text: titleText }
+        }
+      };
+
+      try {
+        const startTime = Date.now();
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const duration = Date.now() - startTime;
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const contentType = response.headers.get('Content-Type');
+
+        if (!contentType.includes('image/')) {
+          const text = await response.text();
+          throw new Error(`Expected image, got ${contentType}: ${text}`);
+        }
+
+        const blob = await response.blob();
+        const imageUrl = URL.createObjectURL(blob);
+
+        result.innerHTML = `
+          <div class="success">
+            ✅ Success! Image generated in ${duration}ms
+          </div>
+          <div class="result">
+            <strong>Result:</strong>
+            <img src="${imageUrl}" alt="Generated overlay">
+            <div style="margin-top: 1rem;">
+              <a href="${imageUrl}" download="switchboard-result.png" style="color: #0070f3; text-decoration: none;">
+                ⬇️ Download Image
+              </a>
+            </div>
+          </div>
+        `;
+
+      } catch (error) {
+        result.innerHTML = `
+          <div class="error">
+            <strong>Error:</strong><br>
+            ${error.message}
+          </div>
+        `;
+        console.error('API Error:', error);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Generate Overlay';
+      }
+    }
+
+    // Allow Enter key to submit
+    document.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        testAPI();
+      }
+    });
+  </script>
+</body>
+</html>
