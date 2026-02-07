@@ -18,11 +18,20 @@
  * }
  */
 
+import fs from 'fs';
+import path from 'path';
 import { processImageOverlay } from '../../lib/imageProcessor';
 import { uploadToR2 } from '../../lib/r2Storage';
 import { getFontsDir, getFontPath } from '../../lib/fontLoader';
 
-const API_VERSION = '2026-02-07-v3';
+const API_VERSION = '2026-02-07-v4';
+
+// IMPORTANT: Explicit file references for Vercel's @vercel/nft file tracer.
+// Without these, font files may not be included in the serverless bundle.
+const _fontTraceRefs = [
+  path.join(process.cwd(), 'fonts', 'elle-bold.ttf'),
+  path.join(process.cwd(), 'fonts', 'NotoSansTC.ttf'),
+].filter(p => fs.existsSync(p));
 
 export const config = {
   api: {
