@@ -20,6 +20,9 @@
 
 import { processImageOverlay } from '../../lib/imageProcessor';
 import { uploadToR2 } from '../../lib/r2Storage';
+import { getFontsDir, getFontPath } from '../../lib/fontLoader';
+
+const API_VERSION = '2026-02-07-v3';
 
 export const config = {
   api: {
@@ -50,6 +53,9 @@ export default async function handler(req, res) {
     const targetWidth = sizes?.[0]?.width || 1080;
     const targetHeight = sizes?.[0]?.height || 1080;
 
+    console.log(`[API] Version: ${API_VERSION}`);
+    console.log(`[API] Fonts dir: ${getFontsDir()}`);
+    console.log(`[API] Noto font: ${getFontPath('NotoSansTC.ttf')}`);
     console.log(`[API] Processing: ${productImageUrl.substring(0, 50)}...`);
 
     // Process the image
@@ -75,10 +81,11 @@ export default async function handler(req, res) {
           url,
           width: targetWidth,
           height: targetHeight,
-          key, // Include key for potential cleanup
+          key,
         }
       ],
       template,
+      _version: API_VERSION,
     });
 
   } catch (error) {
