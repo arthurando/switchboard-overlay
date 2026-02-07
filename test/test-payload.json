@@ -1,0 +1,9 @@
+{
+  "template": "product-cover",
+  "sizes": [{ "width": 1080, "height": 1080 }],
+  "elements": {
+    "product-image": { "url": "https://cdn.shopify.com/s/files/1/0712/1135/2318/files/reusable-collection-cover-polariod.png" },
+    "stt-cover": { "url": "https://i.postimg.cc/4dv39JsQ/cover.png" },
+    "product-title": { "text": "日本製 Hello Kitty 保溫杯【HK001】" }
+  }
+}

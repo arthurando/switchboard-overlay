@@ -15,6 +15,12 @@ const nextConfig = {
   // Suppress workspace root warning
   outputFileTracingRoot: __dirname,
 
+  // Ensure font files are included in the serverless function bundle
+  // Sharp's text API and fontconfig need these files at runtime
+  outputFileTracingIncludes: {
+    '/api/overlay': ['./fonts/**/*'],
+  },
+
   // API route config
   async headers() {
     return [
