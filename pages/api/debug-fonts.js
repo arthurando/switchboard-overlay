@@ -19,15 +19,56 @@ const FONT_REFS = [
 ];
 
 export default async function handler(req, res) {
-  // If ?render=cjk, return CJK test image directly
-  if (req.query.render === 'cjk' || req.query.render === 'cjk-fc') {
+  // ?render=cjk or cjk-fc: simple CJK test
+  // ?render=overlay: exact overlay pipeline simulation
+  if (req.query.render) {
     try {
       const sharp = (await import('sharp')).default;
       const notoPath = getFontPath('NotoSansTC.ttf');
+      const ellePath = getFontPath('elle-bold.ttf');
       initFontconfig();
 
+      const text = req.query.text || '凱蒂貓 Test 測試';
+
+      if (req.query.render === 'overlay') {
+        // Exact same params as generateTextOverlay in imageProcessor.js
+        const fontSize = 35;
+        const letterSpacingPango = Math.round(fontSize * 0.074 * 1024);
+        const hasCJK = /[\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef\u3040-\u309f\u30a0-\u30ff]/.test(text);
+        const primaryFont = hasCJK ? 'Noto Sans TC' : 'Elle Bold';
+        const primaryFontFile = hasCJK ? notoPath : ellePath;
+
+        const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const markup = `<span letter_spacing="${letterSpacingPango}" foreground="black">${escaped}</span>`;
+
+        const opts = {
+          text: markup,
+          font: `${primaryFont} ${fontSize}`,
+          width: 809,
+          align: 'right',
+          rgba: true,
+          dpi: 72,
+          wrap: 'word-char',
+        };
+        if (fs.existsSync(primaryFontFile)) {
+          opts.fontfile = primaryFontFile;
+        }
+
+        const buf = await sharp({ text: opts })
+          .flatten({ background: { r: 255, g: 255, b: 255 } })
+          .png()
+          .toBuffer();
+
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('X-Font', primaryFont);
+        res.setHeader('X-Fontfile', primaryFontFile);
+        res.setHeader('X-HasCJK', String(hasCJK));
+        return res.send(buf);
+      }
+
+      // Simple test
       const testOpts = {
-        text: '<span foreground="black">凱蒂貓 Test 測試</span>',
+        text: `<span foreground="black">${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>`,
         font: 'Noto Sans TC 60',
         rgba: true,
         dpi: 72,
@@ -45,7 +86,7 @@ export default async function handler(req, res) {
       res.setHeader('Content-Type', 'image/png');
       return res.send(buf);
     } catch (e) {
-      return res.status(500).json({ error: e.message });
+      return res.status(500).json({ error: e.message, stack: e.stack });
     }
   }
 
