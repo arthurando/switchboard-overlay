@@ -24,7 +24,7 @@ import { processImageOverlay } from '../../lib/imageProcessor';
 import { uploadToR2 } from '../../lib/r2Storage';
 import { getFontsDir, getFontPath } from '../../lib/fontLoader';
 
-const API_VERSION = '2026-02-07-v10';
+const API_VERSION = '2026-02-07-v11';
 
 // IMPORTANT: Explicit file references for Vercel's @vercel/nft file tracer.
 // Without these, font files may not be included in the serverless bundle.
@@ -83,6 +83,11 @@ export default async function handler(req, res) {
 
     console.log(`[API] ✅ Uploaded to R2: ${url}`);
 
+    // Font diagnostic info
+    const fs = await import('fs');
+    const notoPath = getFontPath('NotoSansTC.ttf');
+    const notoSize = fs.existsSync(notoPath) ? fs.statSync(notoPath).size : 0;
+
     // Return Switchboard-compatible response
     return res.status(200).json({
       sizes: [
@@ -95,6 +100,11 @@ export default async function handler(req, res) {
       ],
       template,
       _version: API_VERSION,
+      _debug: {
+        fontsDir: getFontsDir(),
+        notoSize,
+        notoPath,
+      },
     });
 
   } catch (error) {
