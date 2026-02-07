@@ -24,7 +24,7 @@ import { processImageOverlay } from '../../lib/imageProcessor';
 import { uploadToR2 } from '../../lib/r2Storage';
 import { getFontsDir, getFontPath } from '../../lib/fontLoader';
 
-const API_VERSION = '2026-02-07-v6';
+const API_VERSION = '2026-02-07-v7';
 
 // IMPORTANT: Explicit file references for Vercel's @vercel/nft file tracer.
 // Without these, font files may not be included in the serverless bundle.
