@@ -24,7 +24,7 @@ import { processImageOverlay } from '../../lib/imageProcessor';
 import { uploadToR2 } from '../../lib/r2Storage';
 import { getFontsDir, getFontPath } from '../../lib/fontLoader';
 
-const API_VERSION = '2026-02-07-v11';
+const API_VERSION = '2026-02-07-v12';
 
 // IMPORTANT: Explicit file references for Vercel's @vercel/nft file tracer.
 // Without these, font files may not be included in the serverless bundle.
@@ -83,10 +83,33 @@ export default async function handler(req, res) {
 
     console.log(`[API] ✅ Uploaded to R2: ${url}`);
 
-    // Font diagnostic info
+    // Font diagnostic: render CJK test directly in this Lambda
     const fs = await import('fs');
+    const sharpMod = await import('sharp');
+    const sharpFn = sharpMod.default;
     const notoPath = getFontPath('NotoSansTC.ttf');
     const notoSize = fs.existsSync(notoPath) ? fs.statSync(notoPath).size : 0;
+
+    let diagResult = 'skipped';
+    try {
+      const diagOpts = {
+        text: '<span foreground="black">凱蒂貓</span>',
+        font: 'Noto Sans TC 40',
+        rgba: true,
+        dpi: 72,
+      };
+      if (fs.existsSync(notoPath)) {
+        diagOpts.fontfile = notoPath;
+      }
+      const diagBuf = await sharpFn({ text: diagOpts }).png().toBuffer();
+      const diagMeta = await sharpFn(diagBuf).metadata();
+      diagResult = `${diagMeta.width}x${diagMeta.height} (${diagBuf.length}b)`;
+    } catch (e) {
+      diagResult = `error: ${e.message}`;
+    }
+
+    // Also check what text was actually sent
+    const titleBytes = Buffer.from(titleText, 'utf8');
 
     // Return Switchboard-compatible response
     return res.status(200).json({
@@ -104,6 +127,10 @@ export default async function handler(req, res) {
         fontsDir: getFontsDir(),
         notoSize,
         notoPath,
+        diagRender: diagResult,
+        titleHex: titleBytes.toString('hex').substring(0, 80),
+        titleLength: titleText.length,
+        titleByteLength: titleBytes.length,
       },
     });
 
