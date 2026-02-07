@@ -93,5 +93,72 @@ export default async function handler(req, res) {
     configExists: process.env.FONTCONFIG_FILE ? fs.existsSync(process.env.FONTCONFIG_FILE) : false,
   };
 
+  // Sharp text rendering diagnostic
+  try {
+    const sharp = (await import('sharp')).default;
+    const notoPath = getFontPath('NotoSansTC.ttf');
+
+    // Test 1: Render CJK with fontfile
+    const cjkTestOpts = {
+      text: '<span foreground="black">凱蒂貓</span>',
+      font: 'Noto Sans TC 40',
+      rgba: true,
+      dpi: 72,
+    };
+    if (fs.existsSync(notoPath)) {
+      cjkTestOpts.fontfile = notoPath;
+    }
+
+    const cjkBuf = await sharp({ text: cjkTestOpts }).png().toBuffer();
+    const cjkMeta = await sharp(cjkBuf).metadata();
+
+    // Test 2: Render Latin with fontfile (control)
+    const latinTestOpts = {
+      text: '<span foreground="black">ABC</span>',
+      font: 'Noto Sans TC 40',
+      rgba: true,
+      dpi: 72,
+    };
+    if (fs.existsSync(notoPath)) {
+      latinTestOpts.fontfile = notoPath;
+    }
+
+    const latinBuf = await sharp({ text: latinTestOpts }).png().toBuffer();
+    const latinMeta = await sharp(latinBuf).metadata();
+
+    // Test 3: CJK without fontfile (fontconfig only)
+    const cjkFcOpts = {
+      text: '<span foreground="black">凱蒂貓</span>',
+      font: 'Noto Sans TC 40',
+      rgba: true,
+      dpi: 72,
+    };
+    const cjkFcBuf = await sharp({ text: cjkFcOpts }).png().toBuffer();
+    const cjkFcMeta = await sharp(cjkFcBuf).metadata();
+
+    results.sharpTextTest = {
+      cjkWithFontfile: {
+        width: cjkMeta.width,
+        height: cjkMeta.height,
+        bytes: cjkBuf.length,
+      },
+      latinWithFontfile: {
+        width: latinMeta.width,
+        height: latinMeta.height,
+        bytes: latinBuf.length,
+      },
+      cjkWithFontconfigOnly: {
+        width: cjkFcMeta.width,
+        height: cjkFcMeta.height,
+        bytes: cjkFcBuf.length,
+      },
+      // Return CJK test image as base64 for visual inspection
+      cjkImageBase64: cjkBuf.toString('base64').substring(0, 500) + '...',
+      cjkFcImageBase64: cjkFcBuf.toString('base64').substring(0, 500) + '...',
+    };
+  } catch (e) {
+    results.sharpTextTest = { error: e.message };
+  }
+
   return res.status(200).json(results);
 }
