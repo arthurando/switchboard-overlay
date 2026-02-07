@@ -19,6 +19,36 @@ const FONT_REFS = [
 ];
 
 export default async function handler(req, res) {
+  // If ?render=cjk, return CJK test image directly
+  if (req.query.render === 'cjk' || req.query.render === 'cjk-fc') {
+    try {
+      const sharp = (await import('sharp')).default;
+      const notoPath = getFontPath('NotoSansTC.ttf');
+      initFontconfig();
+
+      const testOpts = {
+        text: '<span foreground="black">凱蒂貓 Test 測試</span>',
+        font: 'Noto Sans TC 60',
+        rgba: true,
+        dpi: 72,
+      };
+
+      if (req.query.render === 'cjk' && fs.existsSync(notoPath)) {
+        testOpts.fontfile = notoPath;
+      }
+
+      const buf = await sharp({ text: testOpts })
+        .flatten({ background: { r: 255, g: 255, b: 255 } })
+        .png()
+        .toBuffer();
+
+      res.setHeader('Content-Type', 'image/png');
+      return res.send(buf);
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   const results = {
     version: '2026-02-07-v3',
     env: {
