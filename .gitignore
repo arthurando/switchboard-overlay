@@ -1,47 +1,75 @@
 # Dependencies
-node_modules
-/.pnp
+node_modules/
+.pnp
 .pnp.js
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.pnpm-store/
+
+# Build & Distribution
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
 
 # Testing
-/coverage
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+playwright/.cache/
 
-# Next.js
-/.next/
-/out/
-
-# Production
-/build
-
-# Misc
-.DS_Store
-*.pem
-
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# Local env files
+# Environment Variables
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
 
-# Vercel
-.vercel
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
 
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Test outputs
+# Operating System
+.DS_Store
+Thumbs.db
+nul
+
+# Cloud Platforms & Deployment
+.vercel/
+.turbo/
+.wrangler/
+
+# Temporary & Cache
+.tmp/
+.cache/
+*.tmp
+
+# Supabase
+supabase/.temp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Project-specific
+*.pem
 test-result*.png
-
-# Lock files (keep package-lock.json)
-# yarn.lock
-# pnpm-lock.yaml
-
-.vercel
