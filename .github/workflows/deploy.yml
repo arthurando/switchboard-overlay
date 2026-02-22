@@ -1,0 +1,53 @@
+name: Deploy — Switchboard
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: deploy-switchboard
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image to GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/arthurando/switchboard-overlay:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 37.27.93.188
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: GITHUB_TOKEN,GITHUB_ACTOR
+          script: |
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            docker pull ghcr.io/arthurando/switchboard-overlay:latest
+            cd /opt/claude-code
+            docker compose up -d switchboard
+            sleep 5
+            docker inspect switchboard --format '{{.State.Status}}' | grep -q running \
+              && echo "✓ switchboard is running" \
+              || (echo "✗ switchboard failed to start" && exit 1)
