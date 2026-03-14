@@ -47,36 +47,38 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { template, sizes, elements } = req.body;
+    const { template, sizes, elements, mode } = req.body;
 
-    // Validate request
-    if (!elements || !elements['product-image']?.url || !elements['stt-cover']?.url) {
+    // Validate request: product-image always required
+    if (!elements || !elements['product-image']?.url) {
       return res.status(400).json({
-        error: 'Missing required elements: product-image.url and stt-cover.url'
+        error: 'Missing required element: product-image.url'
+      });
+    }
+
+    // Legacy mode requires stt-cover; v3 mode does not
+    if (mode !== 'v3' && !elements['stt-cover']?.url) {
+      return res.status(400).json({
+        error: 'Missing required element: stt-cover.url (required in legacy mode, use mode:"v3" to skip)'
       });
     }
 
     const productImageUrl = elements['product-image'].url;
-    const overlayImageUrl = elements['stt-cover'].url;
+    const overlayImageUrl = elements['stt-cover']?.url;
     const titleText = elements['product-title']?.text || '';
     const targetWidth = sizes?.[0]?.width || 1080;
     const targetHeight = sizes?.[0]?.height || 1080;
-
-    console.log(`[API] Version: ${API_VERSION}`);
-    console.log(`[API] Fonts dir: ${getFontsDir()}`);
-    console.log(`[API] Noto font: ${getFontPath('NotoSansTC.ttf')}`);
-    console.log(`[API] Processing: ${productImageUrl.substring(0, 50)}...`);
 
     // Process the image
     const imageBuffer = await processImageOverlay({
       productImageUrl,
       overlayImageUrl,
       titleText,
+      mode,
+      elements,
       width: targetWidth,
       height: targetHeight,
     });
-
-    console.log(`[API] ✅ Processed: ${imageBuffer.length} bytes`);
 
     // Upload to R2
     const { url, key } = await uploadToR2(imageBuffer, 'image/png');
