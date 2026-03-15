@@ -91,6 +91,29 @@ export default async function handler(req, res) {
     }
   }
 
+  // ?render=v3 — call actual generateV3TextOverlay and return the overlay buffer
+  if (req.query.render === 'v3') {
+    try {
+      const { generateV3TextOverlay } = await import('../../lib/v3TextOverlay.js');
+      const text = req.query.text || '韓國 AKIII Classic 凱蒂貓';
+      const buf = await generateV3TextOverlay(1080, 1080, {
+        'brand-label': { text: 'STT MALL HK' },
+        'product-title': { text },
+        'order-cta': { text: '留言 SM660A 下單' },
+      });
+      // Flatten onto white so we can see the white text
+      const sharp = (await import('sharp')).default;
+      const visible = await sharp(buf)
+        .flatten({ background: { r: 50, g: 50, b: 50 } })
+        .png()
+        .toBuffer();
+      res.setHeader('Content-Type', 'image/png');
+      return res.send(visible);
+    } catch (e) {
+      return res.status(500).json({ error: e.message, stack: e.stack });
+    }
+  }
+
   // Default: return font status as JSON
   initFontconfig();
 
