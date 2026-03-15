@@ -110,6 +110,14 @@ export default async function handler(req, res) {
       // Step 1: Generate text overlay FIRST (before any image processing)
       const v3Overlay = await generateV3TextOverlay(targetWidth, targetHeight, elements);
 
+      // Debug: save raw overlay to R2 so we can inspect it
+      const { uploadToR2: debugUpload } = await import('../../lib/r2Storage');
+      const overlayVisible = await sharp(v3Overlay)
+        .flatten({ background: { r: 50, g: 50, b: 50 } })
+        .png()
+        .toBuffer();
+      const { url: debugOverlayUrl } = await debugUpload(overlayVisible, 'image/png');
+
       // Step 2: Download and resize product image
       const imgResp = await axios.get(productImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
       const resizedProduct = await sharp(Buffer.from(imgResp.data))
@@ -157,6 +165,7 @@ export default async function handler(req, res) {
       ],
       template,
       _version: API_VERSION,
+      _debugOverlay: mode === 'v3' ? (typeof debugOverlayUrl !== 'undefined' ? debugOverlayUrl : null) : null,
       _fonts: {
         melleHK: { path: mellePath, exists: melleExists, size: melleExists ? fs.statSync(mellePath).size : 0 },
         fontsDir: getFontsDir(),
