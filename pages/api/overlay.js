@@ -101,32 +101,66 @@ export default async function handler(req, res) {
     let imageBuffer;
 
     if (mode === 'v3') {
-      // V3 mode: inline pipeline — generate text overlay, then download image, then composite
-      // CRITICAL: Initialize fontconfig BEFORE importing Sharp/v3TextOverlay.
-      // Sharp/libvips caches fontconfig state at first init. If our custom fontconfig
-      // (with MElle font) isn't set up before Sharp loads, CJK renders as tofu.
-      const { initFontconfig } = await import('../../lib/fontLoader');
+      // V3: fully inline — no v3TextOverlay.js import, render text directly
+      const { initFontconfig, getFontPath: gfp } = await import('../../lib/fontLoader');
       initFontconfig();
-
+      const mellePath = gfp('MElle-HK-Xbold.ttf');
       const sharp = (await import('sharp')).default;
       const axios = (await import('axios')).default;
-      const { generateV3TextOverlay } = await import('../../lib/v3TextOverlay.js');
 
-      // Step 1: Generate text overlay (fontconfig already initialized)
-      const v3Overlay = await generateV3TextOverlay(targetWidth, targetHeight, elements);
+      const font = 'MElle HK Xbold';
+      const brandText = elements['brand-label']?.text || 'STT MALL HK';
+      const rawTitle = elements['product-title']?.text || '';
+      const ctaText = elements['order-cta']?.text || '';
+      const codeMatch = ctaText.match(/[A-Z]{1,3}\d{3,5}/i);
+      const sttCode = codeMatch ? codeMatch[0] : '';
+      const bottomLine = sttCode ? `${sttCode} ${rawTitle}` : rawTitle;
+      const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-      // Step 2: Download and resize product image
+      // Render Zone A (brand)
+      const brandOpts = {
+        text: `<span foreground="white" font_desc="${font} Bold 60">${esc(brandText)}</span>`,
+        font: `${font} 60`, width: targetWidth - 80, align: 'left',
+        rgba: true, dpi: 72, wrap: 'word-char',
+      };
+      if (fs.existsSync(mellePath)) brandOpts.fontfile = mellePath;
+      const brandBuf = await sharp({ text: brandOpts }).png().toBuffer();
+
+      // Render Zone B (title)
+      const titleOpts = {
+        text: `<span foreground="white" font_desc="${font} Bold 48">${esc(bottomLine)}</span>`,
+        font: `${font} 48`, width: targetWidth - 80, align: 'center',
+        rgba: true, dpi: 72, wrap: 'word-char',
+      };
+      if (fs.existsSync(mellePath)) titleOpts.fontfile = mellePath;
+      const titleBuf = await sharp({ text: titleOpts }).png().toBuffer();
+      const titleMeta = await sharp(titleBuf).metadata();
+
+      // Gradient
+      const gradH = titleMeta.height + 80;
+      const gradSvg = Buffer.from(
+        `<svg width="${targetWidth}" height="${gradH}"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="black" stop-opacity="0"/><stop offset="1" stop-color="black" stop-opacity="0.5"/></linearGradient></defs><rect width="${targetWidth}" height="${gradH}" fill="url(#g)"/></svg>`
+      );
+
+      // Text overlay on transparent canvas
+      const textOverlay = await sharp({
+        create: { width: targetWidth, height: targetHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      }).composite([
+        { input: brandBuf, top: 40, left: 40 },
+        { input: gradSvg, top: targetHeight - gradH, left: 0 },
+        { input: titleBuf, top: targetHeight - titleMeta.height - 30, left: Math.max(0, Math.floor((targetWidth - titleMeta.width) / 2)) },
+      ]).png().toBuffer();
+
+      // Download + resize product image
       const imgResp = await axios.get(productImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
       const resizedProduct = await sharp(Buffer.from(imgResp.data))
         .resize(targetWidth, targetHeight, { fit: 'cover', position: 'center' })
-        .png()
-        .toBuffer();
+        .png().toBuffer();
 
-      // Step 3: Composite text overlay onto product image
+      // Composite
       imageBuffer = await sharp(resizedProduct)
-        .composite([{ input: v3Overlay, top: 0, left: 0 }])
-        .png({ compressionLevel: 6 })
-        .toBuffer();
+        .composite([{ input: textOverlay, top: 0, left: 0 }])
+        .png({ compressionLevel: 6 }).toBuffer();
     } else {
       // Legacy mode: dynamically import processImageOverlay
       const { processImageOverlay } = await import('../../lib/imageProcessor');
