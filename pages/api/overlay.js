@@ -28,11 +28,13 @@ const API_VERSION = '2026-02-07';
 
 // IMPORTANT: Explicit file references for Vercel's @vercel/nft file tracer.
 // Without these, font files may not be included in the serverless bundle.
-const _fontTraceRefs = [
-  path.join(process.cwd(), 'fonts', 'elle-bold.ttf'),
-  path.join(process.cwd(), 'fonts', 'NotoSansTC.ttf'),
-  path.join(process.cwd(), 'fonts', 'MElle-HK-Xbold.ttf'),
-].filter(p => fs.existsSync(p));
+// DO NOT use .filter() — it can prevent NFT from statically tracing the paths.
+const _fontRef1 = path.join(process.cwd(), 'fonts', 'elle-bold.ttf');
+const _fontRef2 = path.join(process.cwd(), 'fonts', 'NotoSansTC.ttf');
+const _fontRef3 = path.join(process.cwd(), 'fonts', 'MElle-HK-Xbold.ttf');
+void fs.existsSync(_fontRef1);
+void fs.existsSync(_fontRef2);
+void fs.existsSync(_fontRef3);
 
 export const config = {
   api: {
@@ -86,6 +88,10 @@ export default async function handler(req, res) {
 
     console.log(`[API] ✅ Uploaded to R2: ${url}`);
 
+    // Check font availability for debug
+    const mellePath = getFontPath('MElle-HK-Xbold.ttf');
+    const melleExists = fs.existsSync(mellePath);
+
     // Return Switchboard-compatible response
     return res.status(200).json({
       sizes: [
@@ -98,6 +104,10 @@ export default async function handler(req, res) {
       ],
       template,
       _version: API_VERSION,
+      _fonts: {
+        melleHK: { path: mellePath, exists: melleExists, size: melleExists ? fs.statSync(mellePath).size : 0 },
+        fontsDir: getFontsDir(),
+      },
     });
 
   } catch (error) {
