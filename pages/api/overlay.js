@@ -102,21 +102,18 @@ export default async function handler(req, res) {
 
     if (mode === 'v3') {
       // V3 mode: inline pipeline — generate text overlay, then download image, then composite
-      // Avoids processImageOverlay which has CJK rendering issues due to Sharp state
+      // CRITICAL: Initialize fontconfig BEFORE importing Sharp/v3TextOverlay.
+      // Sharp/libvips caches fontconfig state at first init. If our custom fontconfig
+      // (with MElle font) isn't set up before Sharp loads, CJK renders as tofu.
+      const { initFontconfig } = await import('../../lib/fontLoader');
+      initFontconfig();
+
       const sharp = (await import('sharp')).default;
       const axios = (await import('axios')).default;
       const { generateV3TextOverlay } = await import('../../lib/v3TextOverlay.js');
 
-      // Step 1: Generate text overlay FIRST (before any image processing)
+      // Step 1: Generate text overlay (fontconfig already initialized)
       const v3Overlay = await generateV3TextOverlay(targetWidth, targetHeight, elements);
-
-      // Debug: save raw overlay to R2 so we can inspect it
-      const { uploadToR2: debugUpload } = await import('../../lib/r2Storage');
-      const overlayVisible = await sharp(v3Overlay)
-        .flatten({ background: { r: 50, g: 50, b: 50 } })
-        .png()
-        .toBuffer();
-      const { url: debugOverlayUrl } = await debugUpload(overlayVisible, 'image/png');
 
       // Step 2: Download and resize product image
       const imgResp = await axios.get(productImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
@@ -165,7 +162,6 @@ export default async function handler(req, res) {
       ],
       template,
       _version: API_VERSION,
-      _debugOverlay: mode === 'v3' ? (typeof debugOverlayUrl !== 'undefined' ? debugOverlayUrl : null) : null,
       _fonts: {
         melleHK: { path: mellePath, exists: melleExists, size: melleExists ? fs.statSync(mellePath).size : 0 },
         fontsDir: getFontsDir(),
