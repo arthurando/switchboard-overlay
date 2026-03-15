@@ -45,6 +45,31 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  // GET ?test=cjk — render CJK test from WITHIN the overlay function context
+  if (req.method === 'GET' && req.query.test === 'cjk') {
+    const sharp = (await import('sharp')).default;
+    const { initFontconfig: initFC, getFontPath: getFP } = await import('../../lib/fontLoader');
+    initFC();
+    const mellePath = getFP('MElle-HK-Xbold.ttf');
+    const text = req.query.text || '韓國 AKIII Classic 凱蒂貓【SM660A】';
+    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const opts = {
+      text: `<span foreground="black" font_desc="MElle HK Xbold Bold 60">${escaped}</span>`,
+      font: 'MElle HK Xbold 60',
+      width: 1000,
+      align: 'center',
+      wrap: 'word-char',
+      rgba: true,
+      dpi: 72,
+    };
+    if (fs.existsSync(mellePath)) opts.fontfile = mellePath;
+    const buf = await sharp({ text: opts }).flatten({ background: { r: 255, g: 255, b: 255 } }).png().toBuffer();
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('X-Font-Path', mellePath);
+    res.setHeader('X-Font-Exists', String(fs.existsSync(mellePath)));
+    return res.send(buf);
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
