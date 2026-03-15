@@ -39,9 +39,7 @@ void fs.existsSync(_fontRef3);
 
 export const config = {
   api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
+    bodyParser: false,
   },
 };
 
@@ -76,7 +74,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { template, sizes, elements, mode } = req.body;
+    // Parse body manually with explicit UTF-8 to preserve CJK characters
+    const body = await new Promise((resolve, reject) => {
+      const chunks = [];
+      req.on('data', (chunk) => chunks.push(chunk));
+      req.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf-8');
+        resolve(JSON.parse(raw));
+      });
+      req.on('error', reject);
+    });
+    const { template, sizes, elements, mode } = body;
 
     // Validate request: product-image always required
     if (!elements || !elements['product-image']?.url) {
@@ -110,7 +118,7 @@ export default async function handler(req, res) {
 
       const font = 'MElle HK Xbold';
       const brandText = elements['brand-label']?.text || 'STT MALL HK';
-      const rawTitle = '經典石墨烯內褲套裝'; // HARDCODED TEST — bypass JSON body
+      const rawTitle = elements['product-title']?.text || '';
       const ctaText = elements['order-cta']?.text || '';
       const codeMatch = ctaText.match(/[A-Z]{1,3}\d{3,5}/i);
       const sttCode = codeMatch ? codeMatch[0] : '';
