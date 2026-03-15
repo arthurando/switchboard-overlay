@@ -110,7 +110,7 @@ export default async function handler(req, res) {
 
       const font = 'MElle HK Xbold';
       const brandText = elements['brand-label']?.text || 'STT MALL HK';
-      const rawTitle = elements['product-title']?.text || '';
+      const rawTitle = '經典石墨烯內褲套裝'; // HARDCODED TEST — bypass JSON body
       const ctaText = elements['order-cta']?.text || '';
       const codeMatch = ctaText.match(/[A-Z]{1,3}\d{3,5}/i);
       const sttCode = codeMatch ? codeMatch[0] : '';
