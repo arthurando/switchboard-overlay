@@ -97,16 +97,42 @@ export default async function handler(req, res) {
     const targetWidth = sizes?.[0]?.width || 1080;
     const targetHeight = sizes?.[0]?.height || 1080;
 
-    // Process the image
-    const imageBuffer = await processImageOverlay({
-      productImageUrl,
-      overlayImageUrl,
-      titleText,
-      mode,
-      elements,
-      width: targetWidth,
-      height: targetHeight,
-    });
+    let imageBuffer;
+
+    if (mode === 'v3') {
+      // V3 mode: inline pipeline — generate text overlay, then download image, then composite
+      // Avoids processImageOverlay which has CJK rendering issues due to Sharp state
+      const sharp = (await import('sharp')).default;
+      const axios = (await import('axios')).default;
+      const { generateV3TextOverlay } = await import('../../lib/v3TextOverlay.js');
+
+      // Step 1: Generate text overlay FIRST (before any image processing)
+      const v3Overlay = await generateV3TextOverlay(targetWidth, targetHeight, elements);
+
+      // Step 2: Download and resize product image
+      const imgResp = await axios.get(productImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
+      const resizedProduct = await sharp(Buffer.from(imgResp.data))
+        .resize(targetWidth, targetHeight, { fit: 'cover', position: 'center' })
+        .png()
+        .toBuffer();
+
+      // Step 3: Composite text overlay onto product image
+      imageBuffer = await sharp(resizedProduct)
+        .composite([{ input: v3Overlay, top: 0, left: 0 }])
+        .png({ compressionLevel: 6 })
+        .toBuffer();
+    } else {
+      // Legacy mode: use processImageOverlay
+      imageBuffer = await processImageOverlay({
+        productImageUrl,
+        overlayImageUrl,
+        titleText,
+        mode,
+        elements,
+        width: targetWidth,
+        height: targetHeight,
+      });
+    }
 
     // Upload to R2
     const { url, key } = await uploadToR2(imageBuffer, 'image/png');
