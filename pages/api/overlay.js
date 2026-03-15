@@ -2,34 +2,15 @@
  * Switchboard Image Overlay API with R2 Storage
  *
  * POST /api/overlay
- * {
- *   "template": "product-cover",
- *   "sizes": [{ "width": 1080, "height": 1080 }],
- *   "elements": {
- *     "product-image": { "url": "https://..." },
- *     "stt-cover": { "url": "https://..." },
- *     "product-title": { "text": "Product Title" }
- *   }
- * }
- *
- * Returns: JSON with R2 public URL (Switchboard-compatible format)
- * {
- *   "sizes": [{ "url": "https://images.yourdomain.com/...", "width": 1080, "height": 1080 }]
- * }
+ * Returns: { sizes: [{ url, width, height, key }], template, _version }
  */
 
 import fs from 'fs';
 import path from 'path';
-// IMPORTANT: Do NOT statically import imageProcessor or sharp here.
-// Static imports cause Sharp/libvips to initialize before fontconfig is configured,
-// which caches font info without our custom fonts → CJK renders as tofu.
-// All Sharp-dependent modules must be dynamically imported AFTER fontconfig init.
 
 const API_VERSION = '2026-02-07';
 
-// IMPORTANT: Explicit file references for Vercel's @vercel/nft file tracer.
-// Without these, font files may not be included in the serverless bundle.
-// DO NOT use .filter() — it can prevent NFT from statically tracing the paths.
+// Explicit file refs for Vercel @vercel/nft file tracer — do not remove
 const _fontRef1 = path.join(process.cwd(), 'fonts', 'elle-bold.ttf');
 const _fontRef2 = path.join(process.cwd(), 'fonts', 'NotoSansTC.ttf');
 const _fontRef3 = path.join(process.cwd(), 'fonts', 'MElle-HK-Xbold.ttf');
@@ -38,37 +19,10 @@ void fs.existsSync(_fontRef2);
 void fs.existsSync(_fontRef3);
 
 export const config = {
-  api: {
-    bodyParser: false,
-  },
+  api: { bodyParser: false },
 };
 
 export default async function handler(req, res) {
-  // GET ?test=cjk — render CJK test from WITHIN the overlay function context
-  if (req.method === 'GET' && req.query.test === 'cjk') {
-    const sharp = (await import('sharp')).default;
-    const { initFontconfig: initFC, getFontPath: getFP } = await import('../../lib/fontLoader');
-    initFC();
-    const mellePath = getFP('MElle-HK-Xbold.ttf');
-    const text = req.query.text || '韓國 AKIII Classic 凱蒂貓【SM660A】';
-    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const opts = {
-      text: `<span foreground="black" font_desc="MElle HK Xbold Bold 60">${escaped}</span>`,
-      font: 'MElle HK Xbold 60',
-      width: 1000,
-      align: 'center',
-      wrap: 'word-char',
-      rgba: true,
-      dpi: 72,
-    };
-    if (fs.existsSync(mellePath)) opts.fontfile = mellePath;
-    const buf = await sharp({ text: opts }).flatten({ background: { r: 255, g: 255, b: 255 } }).png().toBuffer();
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('X-Font-Path', mellePath);
-    res.setHeader('X-Font-Exists', String(fs.existsSync(mellePath)));
-    return res.send(buf);
-  }
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
@@ -78,104 +32,58 @@ export default async function handler(req, res) {
     const body = await new Promise((resolve, reject) => {
       const chunks = [];
       req.on('data', (chunk) => chunks.push(chunk));
-      req.on('end', () => {
-        const raw = Buffer.concat(chunks).toString('utf-8');
-        resolve(JSON.parse(raw));
-      });
+      req.on('end', () => resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8'))));
       req.on('error', reject);
     });
+
     const { template, sizes, elements, mode } = body;
 
-    // Validate request: product-image always required
-    if (!elements || !elements['product-image']?.url) {
-      return res.status(400).json({
-        error: 'Missing required element: product-image.url'
-      });
+    if (!elements?.['product-image']?.url) {
+      return res.status(400).json({ error: 'Missing required element: product-image.url' });
     }
-
-    // Legacy mode requires stt-cover; v3 mode does not
     if (mode !== 'v3' && !elements['stt-cover']?.url) {
       return res.status(400).json({
-        error: 'Missing required element: stt-cover.url (required in legacy mode, use mode:"v3" to skip)'
+        error: 'Missing required element: stt-cover.url (required in legacy mode, use mode:"v3" to skip)',
       });
     }
 
     const productImageUrl = elements['product-image'].url;
-    const overlayImageUrl = elements['stt-cover']?.url;
-    const titleText = elements['product-title']?.text || '';
     const targetWidth = sizes?.[0]?.width || 1080;
     const targetHeight = sizes?.[0]?.height || 1080;
 
     let imageBuffer;
 
     if (mode === 'v3') {
-      // V3: fully inline — no v3TextOverlay.js import, render text directly
-      const { initFontconfig, getFontPath: gfp } = await import('../../lib/fontLoader');
+      // Init fontconfig BEFORE importing sharp-dependent modules
+      const { initFontconfig } = await import('../../lib/fontLoader');
       initFontconfig();
-      const mellePath = gfp('MElle-HK-Xbold.ttf');
+
       const sharp = (await import('sharp')).default;
+      const { generateV3TextOverlay } = await import('../../lib/v3TextOverlay');
+
+      // Generate text overlay (brand + title zones on transparent canvas)
+      const textOverlay = await generateV3TextOverlay(targetWidth, targetHeight, elements);
+
+      // Download and resize product image
       const axios = (await import('axios')).default;
-
-      const font = 'MElle HK Xbold';
-      const brandText = elements['brand-label']?.text || 'STT MALL HK';
-      const rawTitle = elements['product-title']?.text || '';
-      const ctaText = elements['order-cta']?.text || '';
-      const codeMatch = ctaText.match(/[A-Z]{1,3}\d{3,5}/i);
-      const sttCode = codeMatch ? codeMatch[0] : '';
-      const bottomLine = sttCode ? `${sttCode} ${rawTitle}` : rawTitle;
-      const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-      // Render Zone A (brand)
-      const brandOpts = {
-        text: `<span foreground="white" font_desc="${font} Bold 60">${esc(brandText)}</span>`,
-        font: `${font} 60`, width: targetWidth - 80, align: 'left',
-        rgba: true, dpi: 72, wrap: 'word-char',
-      };
-      if (fs.existsSync(mellePath)) brandOpts.fontfile = mellePath;
-      const brandBuf = await sharp({ text: brandOpts }).png().toBuffer();
-
-      // Render Zone B (title)
-      const titleOpts = {
-        text: `<span foreground="white" font_desc="${font} Bold 48">${esc(bottomLine)}</span>`,
-        font: `${font} 48`, width: targetWidth - 80, align: 'center',
-        rgba: true, dpi: 72, wrap: 'word-char',
-      };
-      if (fs.existsSync(mellePath)) titleOpts.fontfile = mellePath;
-      const titleBuf = await sharp({ text: titleOpts }).png().toBuffer();
-      const titleMeta = await sharp(titleBuf).metadata();
-
-      // Gradient
-      const gradH = titleMeta.height + 80;
-      const gradSvg = Buffer.from(
-        `<svg width="${targetWidth}" height="${gradH}"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="black" stop-opacity="0"/><stop offset="1" stop-color="black" stop-opacity="0.5"/></linearGradient></defs><rect width="${targetWidth}" height="${gradH}" fill="url(#g)"/></svg>`
-      );
-
-      // Text overlay on transparent canvas
-      const textOverlay = await sharp({
-        create: { width: targetWidth, height: targetHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-      }).composite([
-        { input: brandBuf, top: 40, left: 40 },
-        { input: gradSvg, top: targetHeight - gradH, left: 0 },
-        { input: titleBuf, top: targetHeight - titleMeta.height - 30, left: Math.max(0, Math.floor((targetWidth - titleMeta.width) / 2)) },
-      ]).png().toBuffer();
-
-      // Download + resize product image
       const imgResp = await axios.get(productImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
       const resizedProduct = await sharp(Buffer.from(imgResp.data))
         .resize(targetWidth, targetHeight, { fit: 'cover', position: 'center' })
-        .png().toBuffer();
+        .png()
+        .toBuffer();
 
-      // Composite
+      // Composite text overlay onto product image
       imageBuffer = await sharp(resizedProduct)
         .composite([{ input: textOverlay, top: 0, left: 0 }])
-        .png({ compressionLevel: 6 }).toBuffer();
+        .png({ compressionLevel: 6 })
+        .toBuffer();
     } else {
-      // Legacy mode: dynamically import processImageOverlay
+      // Legacy mode
       const { processImageOverlay } = await import('../../lib/imageProcessor');
       imageBuffer = await processImageOverlay({
         productImageUrl,
-        overlayImageUrl,
-        titleText,
+        overlayImageUrl: elements['stt-cover'].url,
+        titleText: elements['product-title']?.text || '',
         mode,
         elements,
         width: targetWidth,
@@ -183,40 +91,21 @@ export default async function handler(req, res) {
       });
     }
 
-    // Upload to R2 (dynamic import)
+    // Upload to R2
     const { uploadToR2 } = await import('../../lib/r2Storage');
     const { url, key } = await uploadToR2(imageBuffer, 'image/png');
 
-    // Check font availability for debug
-    const { getFontPath, getFontsDir } = await import('../../lib/fontLoader');
-    const mellePath = getFontPath('MElle-HK-Xbold.ttf');
-    const melleExists = fs.existsSync(mellePath);
-
-    // Return Switchboard-compatible response
     return res.status(200).json({
-      sizes: [
-        {
-          url,
-          width: targetWidth,
-          height: targetHeight,
-          key,
-        }
-      ],
+      sizes: [{ url, width: targetWidth, height: targetHeight, key }],
       template,
       _version: API_VERSION,
-      _fonts: {
-        melleHK: { path: mellePath, exists: melleExists, size: melleExists ? fs.statSync(mellePath).size : 0 },
-        fontsDir: getFontsDir(),
-      },
     });
-
   } catch (error) {
-    console.error('[API] ❌ Error:', error);
-
+    console.error('[API] overlay error:', error.message);
     return res.status(500).json({
       error: 'Failed to process image overlay',
       message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 }
