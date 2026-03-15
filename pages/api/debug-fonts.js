@@ -12,6 +12,7 @@ import { getFontsDir, getFontPath, initFontconfig } from '../../lib/fontLoader';
 const _fontTraceRefs = [
   path.join(process.cwd(), 'fonts', 'elle-bold.ttf'),
   path.join(process.cwd(), 'fonts', 'NotoSansTC.ttf'),
+  path.join(process.cwd(), 'fonts', 'MElle-HK-Xbold.ttf'),
 ];
 
 export default async function handler(req, res) {
@@ -45,11 +46,44 @@ export default async function handler(req, res) {
     }
   }
 
+  // ?render=melle — render CJK text using MElle HK Xbold
+  if (req.query.render === 'melle') {
+    try {
+      const sharp = (await import('sharp')).default;
+      initFontconfig();
+      const melleFontPath = getFontPath('MElle-HK-Xbold.ttf');
+      const text = req.query.text || '韓國 AKIII Classic 凱蒂貓【SM660A】';
+      const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      const opts = {
+        text: `<span foreground="black" font_desc="MElle HK Xbold Bold 60">${escaped}</span>`,
+        font: 'MElle HK Xbold 60',
+        rgba: true,
+        dpi: 72,
+      };
+      if (fs.existsSync(melleFontPath)) {
+        opts.fontfile = melleFontPath;
+      }
+
+      const buf = await sharp({ text: opts })
+        .flatten({ background: { r: 255, g: 255, b: 255 } })
+        .png()
+        .toBuffer();
+
+      res.setHeader('Content-Type', 'image/png');
+      return res.send(buf);
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   // Default: return font status as JSON
   initFontconfig();
 
   const ellePath = getFontPath('elle-bold.ttf');
   const notoPath = getFontPath('NotoSansTC.ttf');
+
+  const mellePath = getFontPath('MElle-HK-Xbold.ttf');
 
   return res.status(200).json({
     fontsDir: getFontsDir(),
@@ -63,6 +97,11 @@ export default async function handler(req, res) {
         path: notoPath,
         exists: fs.existsSync(notoPath),
         size: fs.existsSync(notoPath) ? fs.statSync(notoPath).size : 0,
+      },
+      melleHK: {
+        path: mellePath,
+        exists: fs.existsSync(mellePath),
+        size: fs.existsSync(mellePath) ? fs.statSync(mellePath).size : 0,
       },
     },
     fontconfig: {

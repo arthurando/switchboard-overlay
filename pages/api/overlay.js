@@ -31,6 +31,7 @@ const API_VERSION = '2026-02-07';
 const _fontTraceRefs = [
   path.join(process.cwd(), 'fonts', 'elle-bold.ttf'),
   path.join(process.cwd(), 'fonts', 'NotoSansTC.ttf'),
+  path.join(process.cwd(), 'fonts', 'MElle-HK-Xbold.ttf'),
 ].filter(p => fs.existsSync(p));
 
 export const config = {
