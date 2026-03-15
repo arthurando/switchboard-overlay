@@ -46,8 +46,10 @@ export default async function handler(req, res) {
     }
   }
 
-  // ?render=melle — render CJK text using MElle HK Xbold
-  if (req.query.render === 'melle') {
+  // ?render=melle — render CJK text using MElle HK Xbold (no width constraint)
+  // ?render=melle-width — same but WITH width+wrap (mimics v3TextOverlay)
+  // ?render=melle-nofile — fontconfig only, no fontfile (with width+wrap)
+  if (req.query.render?.startsWith('melle')) {
     try {
       const sharp = (await import('sharp')).default;
       initFontconfig();
@@ -61,7 +63,16 @@ export default async function handler(req, res) {
         rgba: true,
         dpi: 72,
       };
-      if (fs.existsSync(melleFontPath)) {
+
+      // Add width+wrap constraints (same as v3TextOverlay)
+      if (req.query.render === 'melle-width' || req.query.render === 'melle-nofile') {
+        opts.width = 1000;
+        opts.align = 'center';
+        opts.wrap = 'word-char';
+      }
+
+      // Add fontfile (unless nofile mode)
+      if (req.query.render !== 'melle-nofile' && fs.existsSync(melleFontPath)) {
         opts.fontfile = melleFontPath;
       }
 
@@ -71,9 +82,12 @@ export default async function handler(req, res) {
         .toBuffer();
 
       res.setHeader('Content-Type', 'image/png');
+      res.setHeader('X-Render-Mode', req.query.render);
+      res.setHeader('X-Font-File', opts.fontfile || 'fontconfig-only');
+      res.setHeader('X-Width', opts.width || 'unconstrained');
       return res.send(buf);
     } catch (e) {
-      return res.status(500).json({ error: e.message });
+      return res.status(500).json({ error: e.message, render: req.query.render });
     }
   }
 
