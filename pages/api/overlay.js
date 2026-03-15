@@ -20,9 +20,10 @@
 
 import fs from 'fs';
 import path from 'path';
-import { processImageOverlay } from '../../lib/imageProcessor';
-import { uploadToR2 } from '../../lib/r2Storage';
-import { getFontsDir, getFontPath } from '../../lib/fontLoader';
+// IMPORTANT: Do NOT statically import imageProcessor or sharp here.
+// Static imports cause Sharp/libvips to initialize before fontconfig is configured,
+// which caches font info without our custom fonts → CJK renders as tofu.
+// All Sharp-dependent modules must be dynamically imported AFTER fontconfig init.
 
 const API_VERSION = '2026-02-07';
 
@@ -122,7 +123,8 @@ export default async function handler(req, res) {
         .png({ compressionLevel: 6 })
         .toBuffer();
     } else {
-      // Legacy mode: use processImageOverlay
+      // Legacy mode: dynamically import processImageOverlay
+      const { processImageOverlay } = await import('../../lib/imageProcessor');
       imageBuffer = await processImageOverlay({
         productImageUrl,
         overlayImageUrl,
@@ -134,12 +136,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // Upload to R2
+    // Upload to R2 (dynamic import)
+    const { uploadToR2 } = await import('../../lib/r2Storage');
     const { url, key } = await uploadToR2(imageBuffer, 'image/png');
 
-    console.log(`[API] ✅ Uploaded to R2: ${url}`);
-
     // Check font availability for debug
+    const { getFontPath, getFontsDir } = await import('../../lib/fontLoader');
     const mellePath = getFontPath('MElle-HK-Xbold.ttf');
     const melleExists = fs.existsSync(mellePath);
 
