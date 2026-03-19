@@ -38,6 +38,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Sync production compose to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 37.27.93.188
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: docker-compose.prod.yml
+          target: /opt/claude-code/services/
+          strip_components: 0
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
@@ -48,6 +58,7 @@ jobs:
           command_timeout: 10m
           script: |
             set -e
+            mv /opt/claude-code/services/docker-compose.prod.yml /opt/claude-code/services/switchboard.yml
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
             docker pull ghcr.io/arthurando/switchboard-overlay:latest
             cd /opt/claude-code
