@@ -1,9 +1,9 @@
 name: Deploy — Switchboard
 
 on:
-  push:
-    branches: [master]
-  workflow_dispatch:
+  # push:                    # DISABLED 2026-03-20 — manual deploys only (save GHA minutes)
+  #   branches: [master]
+  workflow_dispatch:          # Emergency fallback only
 
 concurrency:
   group: deploy-switchboard
