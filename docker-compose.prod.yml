@@ -1,9 +1,9 @@
 # Single source of truth for the switchboard service on VPS.
-# GHA deploy copies this to /opt/claude-code/services/switchboard.yml
+# deploy.sh copies this to /opt/claude-code/services/switchboard.yml
 
 services:
   switchboard:
-    image: ghcr.io/arthurando/switchboard-overlay:latest
+    image: switchboard:latest
     container_name: switchboard
     restart: always
     security_opt:
