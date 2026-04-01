@@ -16,6 +16,10 @@ const _fontTraceRefs = [
 ];
 
 export default async function handler(req, res) {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
   // ?render=cjk — render text as PNG using fontfile
   if (req.query.render === 'cjk') {
     try {

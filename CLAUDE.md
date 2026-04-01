@@ -1,61 +1,31 @@
-# Switchboard - Image Overlay Service
+# Switchboard — Image Overlay Service
+Stack: Next.js 15 (Pages Router) | Sharp | AWS SDK v3 | Cloudflare R2
+Deploy: `switchboard` | VPS `37.27.93.188` | branch: master | context: .
 
-Self-hosted image overlay API replacing Switchboard.ai. Processes product images with custom overlays and stores them in Cloudflare R2.
+## Rules
+1. **VPS only** — never deploy to Vercel; service moved 2026-03-15
+2. **`charset=utf-8` always** — required when calling `/api/overlay`; CJK breaks without it
+3. **MElle HK Xbold** — CJK font for text overlays; do not substitute
+4. **R2 storage only** — generated images always upload to R2; never serve from local disk
+5. **Overlay runs on VPS as background job** — skip at preview stage; apply only at scheduling time
+6. **No Zod installed** — input validation in overlay.js is manual; install Zod before adding new routes
+7. **`/api/debug-fonts` is dev-only** — gated by `NODE_ENV === 'production'`; returns 404 in prod
 
-## Overview
+## Anti-Patterns
+- Serving generated images from local disk (use R2 public URLs)
+- Running overlay during pipeline preview (schedule-time only)
+- Substituting fonts for CJK text rendering
 
-| Property | Value |
-|----------|-------|
-| GitHub | `arthurando/switchboard-overlay` (private) |
-| Stack | Next.js 15 + Sharp + AWS SDK + Cloudflare R2 |
-| Deployment | Vercel (`switchboard-rust.vercel.app`) |
-| Storage | Cloudflare R2 (S3-compatible) |
+## Database
+No Supabase tables — stateless image processing service.
 
-## Features
+## Key Files
+- `spec.md` — architecture, API contract, template system, env vars
+- `pages/api/overlay.js` — main composite image endpoint
+- `lib/v3TextOverlay.js` — V3 text overlay with MElle HK Xbold
+- `lib/r2Storage.js` — Cloudflare R2 upload
+- `lib/imageProcessor.js` — legacy overlay compositing
+- `plans/` — task plans
 
-- Fast image processing with Sharp library
-- Auto-resize and composite overlay images
-- Cloudflare R2 storage with public URLs
-- Drop-in replacement for Switchboard.ai API
-- CORS enabled for Google Apps Script integration
-
-## API Endpoint
-
-**POST** `/api/overlay`
-
-```json
-{
-  "template": "product-cover",
-  "sizes": [{ "width": 1080, "height": 1080 }],
-  "elements": {
-    "product-image": { "url": "https://example.com/product.jpg" },
-    "stt-cover": { "url": "https://example.com/overlay.png" }
-  }
-}
-```
-
-Returns public R2 URL for generated composite image.
-
-## Environment Variables
-
-Required in Vercel:
-- `R2_ACCOUNT_ID` - Cloudflare account ID
-- `R2_BUCKET_NAME` - R2 bucket name
-- `R2_DEV_SUBDOMAIN` - R2 public subdomain (pub-xxxxx.r2.dev)
-- `R2_ACCESS_KEY_ID` - R2 API access key
-- `R2_SECRET_ACCESS_KEY` - R2 API secret key
-
-## Project Files
-
-| File | Purpose |
-|------|---------|
-| `spec.md` | Requirements, features, architecture, tech stack, API endpoints |
-| `STATUS.md` | Current status, progress tracking, next steps |
-
-## Cost Savings
-
-Replaces $29-99/month Switchboard.ai subscription with free Vercel + Cloudflare R2 tiers.
-
-**Annual savings:** $348 - $1,188
-
-Inherits global rules from `~/.claude/CLAUDE.md`.
+## Overrides
+None — inherits all global rules from `~/.claude/CLAUDE.md`.

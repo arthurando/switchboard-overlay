@@ -38,6 +38,17 @@ export default async function handler(req, res) {
 
     const { template, sizes, elements, mode } = body;
 
+    // Basic input validation (no zod installed — validate manually)
+    if (!template || typeof template !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid field: template (string required)' });
+    }
+    if (!Array.isArray(sizes) || sizes.length === 0) {
+      return res.status(400).json({ error: 'Missing or invalid field: sizes (non-empty array required)' });
+    }
+    if (!elements || typeof elements !== 'object' || Array.isArray(elements)) {
+      return res.status(400).json({ error: 'Missing or invalid field: elements (object required)' });
+    }
+
     if (!elements?.['product-image']?.url) {
       return res.status(400).json({ error: 'Missing required element: product-image.url' });
     }
