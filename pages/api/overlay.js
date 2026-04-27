@@ -75,9 +75,16 @@ export default async function handler(req, res) {
       // Generate text overlay (brand + title zones on transparent canvas)
       const textOverlay = await generateV3TextOverlay(targetWidth, targetHeight, elements);
 
-      // Download and resize product image
+      // Download and resize product image.
+      // Force Accept: image/jpeg so Shopify CDN doesn't content-negotiate WebP;
+      // sharp on this VPS image has no WebP support and would throw
+      // "Input buffer contains unsupported image format" (caught on SM1408).
       const axios = (await import('axios')).default;
-      const imgResp = await axios.get(productImageUrl, { responseType: 'arraybuffer', timeout: 15000 });
+      const imgResp = await axios.get(productImageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+        headers: { 'Accept': 'image/jpeg,image/png,image/*;q=0.8' },
+      });
       const resizedProduct = await sharp(Buffer.from(imgResp.data))
         .resize(targetWidth, targetHeight, { fit: 'cover', position: 'center' })
         .png()
