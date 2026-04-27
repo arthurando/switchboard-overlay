@@ -84,9 +84,11 @@ export default async function handler(req, res) {
         .toBuffer();
 
       // Composite text overlay onto product image
+      // JPEG output (not PNG) — Instagram Graph container endpoint rejects
+      // image/png with MEDIA_TYPE_PNG preflight error
       imageBuffer = await sharp(resizedProduct)
         .composite([{ input: textOverlay, top: 0, left: 0 }])
-        .png({ compressionLevel: 6 })
+        .jpeg({ quality: 90, mozjpeg: true })
         .toBuffer();
     } else {
       // Legacy mode
@@ -104,7 +106,7 @@ export default async function handler(req, res) {
 
     // Upload to R2
     const { uploadToR2 } = await import('../../lib/r2Storage');
-    const { url, key } = await uploadToR2(imageBuffer, 'image/png');
+    const { url, key } = await uploadToR2(imageBuffer, 'image/jpeg');
 
     return res.status(200).json({
       sizes: [{ url, width: targetWidth, height: targetHeight, key }],
