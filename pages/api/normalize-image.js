@@ -21,17 +21,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = await new Promise((resolve, reject) => {
-      const chunks = [];
-      req.on('data', (c) => chunks.push(c));
-      req.on('end', () => {
-        try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8'))); }
-        catch (e) { reject(e); }
-      });
-      req.on('error', reject);
-    });
-
-    const { url, format = 'jpeg' } = body || {};
+    // Next.js Pages Router auto-parses JSON when Content-Type: application/json
+    // and bodyParser is not disabled. Trust req.body.
+    const { url, format = 'jpeg' } = req.body ?? {};
     if (!url || typeof url !== 'string') {
       return res.status(400).json({ error: 'Missing or invalid field: url (string required)' });
     }
